@@ -34,20 +34,12 @@
     </None>
   </ItemGroup>
 
-  <!-- Used during local development -->
   <ItemGroup>
     <Content Include="Resources\dart-sass\**\*">
+      <Pack>true</Pack>
+      <PackagePath>content\Resources\dart-sass\</PackagePath>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-  </ItemGroup>
-
-  <!-- Used when packed as NuGet -->
-  <ItemGroup>
-    <None Include="Resources\dart-sass\**\*">
-      <Pack>true</Pack>
-      <PackagePath>contentFiles\any\any\Resources\dart-sass\</PackagePath>
-      <CopyToOutput>true</CopyToOutput>
-    </None>
   </ItemGroup>
 
   <ItemGroup>
