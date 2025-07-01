@@ -38,6 +38,8 @@
     <Content Include="Resources\dart-sass\**\*">
       <Pack>true</Pack>
       <PackagePath>content\Resources\dart-sass\</PackagePath>
+      <PackagePath>contentFiles\any\any\Resources\dart-sass\</PackagePath>
+      <PackageCopyToOutput>true</PackageCopyToOutput>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
