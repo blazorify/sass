@@ -35,12 +35,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Resources\dart-sass\**\*.*">
+    <None Include="Resources\dart-sass\**\*.*">
       <Pack>true</Pack>
       <PackagePath>contentFiles\any\any\Resources\dart-sass\</PackagePath>
       <PackageCopyToOutput>true</PackageCopyToOutput>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
