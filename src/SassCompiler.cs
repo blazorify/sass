@@ -16,15 +16,18 @@ namespace Blazorify.Sass {
 		) {
 			this.logger = logger;
 
-			var platform = $"{OSPlatform.Windows}".ToLowerInvariant();
-			var arch = $"{RuntimeInformation.OSArchitecture}".ToLowerInvariant();
+			var runtimeID = OperatingSystem.IsWindows() ? "win-x64"
+			  : OperatingSystem.IsLinux() ? "linux-x64"
+			  : OperatingSystem.IsMacOS() ? "osx-x64"
+			  : throw new NotSupportedException();
 
 			this.sassPath = Path.Combine(
 				AppContext.BaseDirectory,
-				"Resources",
+				"runtimes",
+				runtimeID,
+				"native",
 				"dart-sass",
-				$"{platform}-{arch}",
-				platform == "windows" ? "sass.bat" : "sass"
+				RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "sass.bat" : "sass"
 			);
 
 			if (!File.Exists(this.sassPath)) {
