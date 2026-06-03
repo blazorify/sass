@@ -85,5 +85,5 @@ Set options per file via `SassFileRegistration.Options` or per call when using `
 ## Notes
 
 - Target framework: `net10.0`.
-- Supported runtimes: win-x64, linux-x64, osx-x64 (additional RIDs would need binaries added to `runtimes/`).
+- Supported runtimes: win-x64, linux-x64, linux-arm64, osx-x64 (additional RIDs would need binaries added to `runtimes/`).
 - For production, keep `Watch = false` and precompile during startup or at build time.

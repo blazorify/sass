@@ -17,7 +17,9 @@ namespace Blazorify.Sass {
 			this.logger = logger;
 
 			var runtimeID = OperatingSystem.IsWindows() ? "win-x64"
-			  : OperatingSystem.IsLinux() ? "linux-x64"
+			  : OperatingSystem.IsLinux() ? RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64"
+				: RuntimeInformation.ProcessArchitecture == Architecture.Arm ? "linux-arm"
+				: "linux-x64"
 			  : OperatingSystem.IsMacOS() ? "osx-x64"
 			  : throw new NotSupportedException();
 
