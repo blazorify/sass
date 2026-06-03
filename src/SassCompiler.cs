@@ -11,22 +11,32 @@ namespace Blazorify.Sass {
 
 		private readonly String sassPath;
 
+		private static String GetRuntimeID() {
+			var os = OperatingSystem.IsWindows() ? "win"
+				: OperatingSystem.IsLinux() ? "linux"
+				: OperatingSystem.IsMacOS() ? "osx"
+				: "unknown";
+
+			var arch = RuntimeInformation.ProcessArchitecture switch {
+				Architecture.X64 => "x64",
+				Architecture.Arm64 => "arm64",
+				Architecture.Arm => "arm",
+				_ => "unknown"
+			};
+
+			return os == "unknown" || arch == "unknown" ? os : $"{os}-{arch}";
+		}
+
 		public SassCompiler(
 			ILogger<SassCompiler> logger
 		) {
 			this.logger = logger;
 
-			var runtimeID = OperatingSystem.IsWindows() ? "win-x64"
-			  : OperatingSystem.IsLinux() ? RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "linux-arm64"
-				: RuntimeInformation.ProcessArchitecture == Architecture.Arm ? "linux-arm"
-				: "linux-x64"
-			  : OperatingSystem.IsMacOS() ? "osx-x64"
-			  : throw new NotSupportedException();
 
 			this.sassPath = Path.Combine(
 				AppContext.BaseDirectory,
 				"runtimes",
-				runtimeID,
+				GetRuntimeID(),
 				"native",
 				"dart-sass",
 				RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "sass.bat" : "sass"
