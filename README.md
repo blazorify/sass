@@ -86,4 +86,6 @@ Set options per file via `SassFileRegistration.Options` or per call when using `
 
 - Target framework: `net10.0`.
 - Supported runtimes: win-x64, linux-x64, linux-arm64, osx-x64 (additional RIDs would need binaries added to `runtimes/`).
+- Linux support assumes a glibc-based distro. Alpine and other musl-based runtimes are not supported by the bundled Dart Sass binaries.
+- The package normalizes execute permissions for bundled Linux tools during build/publish so they remain runnable in non-root deployments.
 - For production, keep `Watch = false` and precompile during startup or at build time.

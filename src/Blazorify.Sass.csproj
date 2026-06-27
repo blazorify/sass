@@ -51,6 +51,10 @@
       <Pack>true</Pack>
       <PackagePath>runtimes\osx-x64\native\</PackagePath>
     </None>
+    <None Include="buildTransitive\**\*">
+      <Pack>true</Pack>
+      <PackagePath>buildTransitive\</PackagePath>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

@@ -27,10 +27,40 @@ namespace Blazorify.Sass {
 			return os == "unknown" || arch == "unknown" ? os : $"{os}-{arch}";
 		}
 
+		private static Boolean IsMuslRuntime() {
+			if (!OperatingSystem.IsLinux()) {
+				return false;
+			}
+
+			if (File.Exists("/etc/alpine-release")) {
+				return true;
+			}
+
+			var muslLoaderPaths = new[] {
+				"/lib/ld-musl-x86_64.so.1",
+				"/lib/ld-musl-aarch64.so.1",
+				"/lib/ld-musl-armhf.so.1",
+			};
+
+			foreach (var muslLoaderPath in muslLoaderPaths) {
+				if (File.Exists(muslLoaderPath)) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+
 		public SassCompiler(
 			ILogger<SassCompiler> logger
 		) {
 			this.logger = logger;
+
+			if (IsMuslRuntime()) {
+				throw new PlatformNotSupportedException(
+					"Blazorify.Sass bundles glibc-based Linux Dart Sass binaries. musl-based distributions such as Alpine are not supported. Use a glibc-based .NET runtime image or precompile your CSS before startup."
+				);
+			}
 
 
 			this.sassPath = Path.Combine(

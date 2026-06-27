@@ -1,0 +1,19 @@
+<Project>
+	<Target Name="BlazorifySassNormalizeLinuxExecutablesAfterBuild" AfterTargets="CopyFilesToOutputDirectory" Condition="'$(OS)' != 'Windows_NT'">
+		<ItemGroup>
+			<BlazorifySassExecutable Include="$(TargetDir)runtimes/linux-*/native/dart-sass/sass" />
+			<BlazorifySassExecutable Include="$(TargetDir)runtimes/linux-*/native/dart-sass/src/dart" />
+		</ItemGroup>
+
+		<Exec Command="chmod 755 &quot;%(BlazorifySassExecutable.Identity)&quot;" Condition="Exists('%(BlazorifySassExecutable.Identity)')" />
+	</Target>
+
+	<Target Name="BlazorifySassNormalizeLinuxExecutablesAfterPublish" AfterTargets="CopyFilesToPublishDirectory" Condition="'$(OS)' != 'Windows_NT'">
+		<ItemGroup>
+			<BlazorifySassExecutable Include="$(PublishDir)runtimes/linux-*/native/dart-sass/sass" />
+			<BlazorifySassExecutable Include="$(PublishDir)runtimes/linux-*/native/dart-sass/src/dart" />
+		</ItemGroup>
+
+		<Exec Command="chmod 755 &quot;%(BlazorifySassExecutable.Identity)&quot;" Condition="Exists('%(BlazorifySassExecutable.Identity)')" />
+	</Target>
+</Project>
