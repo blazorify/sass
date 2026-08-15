@@ -1,8 +1,19 @@
 <Project>
+	<!--
+		Two layouts are covered because a RID-specific publish - what `dotnet publish` with an os and
+		arch produces, and what the SDK's PublishContainer target does - flattens native assets to the
+		output root, while a portable publish keeps them under runtimes/<rid>/native/. A glob matching
+		only the second leaves the runtime present and unrunnable.
+
+		755 rather than +x for the owner: in a container the published files are root-owned and the
+		process runs as a different user, so without o+x the executable bit is there for nobody who
+		needs it.
+	-->
 	<Target Name="BlazorifySassNormalizeLinuxExecutablesAfterBuild" AfterTargets="CopyFilesToOutputDirectory" Condition="'$(OS)' != 'Windows_NT'">
 		<ItemGroup>
 			<BlazorifySassExecutable Include="$(TargetDir)runtimes/linux-*/native/dart-sass/sass" />
 			<BlazorifySassExecutable Include="$(TargetDir)runtimes/linux-*/native/dart-sass/src/dart" />
+			<BlazorifySassExecutable Include="$(TargetDir)dart" />
 		</ItemGroup>
 
 		<Exec Command="chmod 755 &quot;%(BlazorifySassExecutable.Identity)&quot;" Condition="Exists('%(BlazorifySassExecutable.Identity)')" />
@@ -12,6 +23,7 @@
 		<ItemGroup>
 			<BlazorifySassExecutable Include="$(PublishDir)runtimes/linux-*/native/dart-sass/sass" />
 			<BlazorifySassExecutable Include="$(PublishDir)runtimes/linux-*/native/dart-sass/src/dart" />
+			<BlazorifySassExecutable Include="$(PublishDir)dart" />
 		</ItemGroup>
 
 		<Exec Command="chmod 755 &quot;%(BlazorifySassExecutable.Identity)&quot;" Condition="Exists('%(BlazorifySassExecutable.Identity)')" />
