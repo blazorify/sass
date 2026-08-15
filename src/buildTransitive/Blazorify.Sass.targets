@@ -28,4 +28,132 @@
 
 		<Exec Command="chmod 755 &quot;%(BlazorifySassExecutable.Identity)&quot;" Condition="Exists('%(BlazorifySassExecutable.Identity)')" />
 	</Target>
+
+	<!--
+		Build-time compilation, opt-in. A consumer declares what to compile and nothing happens
+		otherwise:
+
+			<ItemGroup>
+				<SassCompile Include="Resources/Styles/index.scss"
+				             RelativePath="styles/main.css"
+				             LoadPath="Resources/Styles/bootstrap" />
+			</ItemGroup>
+
+		RelativePath is the path the browser asks for, not a location on disk. The compiled file goes
+		to obj and is registered as a static web asset from there, which is the only arrangement that
+		works: wwwroot is globbed during *evaluation*, so anything a target writes into it has already
+		been missed by the build that wrote it. The consequence is the stylesheet request serving the
+		catch-all page - and it conceals itself, because the next build finds the file the previous
+		one left behind. It reproduces on a clean tree and never on the machine that wrote the target.
+
+		Registration follows what the SDK does for scoped CSS, which is the same problem: a file that
+		does not exist at evaluation, produced during the build, and served.
+
+		Compiling at startup instead is what this exists to replace. Publish fingerprints each asset
+		and records its length, so rewriting a stylesheet afterwards makes every request for it fail
+		on a length mismatch; and in a container it cannot work at all, because the published tree is
+		root-owned and the process is not root.
+
+		dart is invoked with the snapshot directly rather than through the bundled sass wrapper,
+		which hardcodes its own path to $path/src/dart and breaks wherever the layout differs.
+	-->
+	<PropertyGroup>
+		<BlazorifySassRuntimeIdentifier Condition="'$(BlazorifySassRuntimeIdentifier)' == '' and '$(OS)' == 'Windows_NT'">win-x64</BlazorifySassRuntimeIdentifier>
+		<BlazorifySassRuntimeIdentifier Condition="'$(BlazorifySassRuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-x64</BlazorifySassRuntimeIdentifier>
+		<BlazorifySassRuntimeIdentifier Condition="'$(BlazorifySassRuntimeIdentifier)' == '' and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">linux-arm64</BlazorifySassRuntimeIdentifier>
+		<BlazorifySassRuntimeIdentifier Condition="'$(BlazorifySassRuntimeIdentifier)' == ''">linux-x64</BlazorifySassRuntimeIdentifier>
+
+		<BlazorifySassToolDirectory>$(MSBuildThisFileDirectory)../runtimes/$(BlazorifySassRuntimeIdentifier)/native/dart-sass/src/</BlazorifySassToolDirectory>
+		<BlazorifySassDart Condition="'$(OS)' == 'Windows_NT'">$(BlazorifySassToolDirectory)dart.exe</BlazorifySassDart>
+		<BlazorifySassDart Condition="'$(BlazorifySassDart)' == ''">$(BlazorifySassToolDirectory)dart</BlazorifySassDart>
+		<BlazorifySassSnapshot>$(BlazorifySassToolDirectory)sass.snapshot</BlazorifySassSnapshot>
+
+		<BlazorifySassStyle Condition="'$(BlazorifySassStyle)' == ''">compressed</BlazorifySassStyle>
+		<BlazorifySassOutputPath Condition="'$(BlazorifySassOutputPath)' == ''">$(IntermediateOutputPath)blazorify-sass/</BlazorifySassOutputPath>
+
+		<GenerateComputedBuildStaticWebAssetsDependsOn>
+			$(GenerateComputedBuildStaticWebAssetsDependsOn);
+			BlazorifySassResolveStaticWebAssets;
+		</GenerateComputedBuildStaticWebAssetsDependsOn>
+	</PropertyGroup>
+
+	<!--
+		The entry file is not the dependency set - an @import brings in partials the consumer never
+		named, so an up-to-date check against the entry alone skips the rebuild that matters. Every
+		.scss beside it and under its load path counts as an input instead.
+	-->
+	<Target Name="BlazorifySassCollectSources" Condition="'@(SassCompile)' != ''">
+		<ItemGroup>
+			<BlazorifySassSource Include="%(SassCompile.RootDir)%(SassCompile.Directory)**/*.scss" />
+			<BlazorifySassSource Include="%(SassCompile.LoadPath)/**/*.scss" Condition="'%(SassCompile.LoadPath)' != ''" />
+
+			<BlazorifySassOutput Include="@(SassCompile->'$(BlazorifySassOutputPath)%(RelativePath)')" />
+		</ItemGroup>
+	</Target>
+
+	<Target Name="BlazorifySassCompile"
+	        DependsOnTargets="BlazorifySassCollectSources"
+	        Condition="'@(SassCompile)' != ''"
+	        Inputs="@(BlazorifySassSource)"
+	        Outputs="@(BlazorifySassOutput)">
+
+		<!--
+			Failing here rather than skipping: a missing compiler otherwise produces a build that
+			succeeds and an application serving a stylesheet that is stale or absent, which surfaces
+			as a styling bug rather than as a build problem.
+		-->
+		<Error Condition="!Exists('$(BlazorifySassDart)')"
+		       Text="Blazorify.Sass: no Dart runtime at $(BlazorifySassDart). The package ships one per runtime identifier; set BlazorifySassRuntimeIdentifier if $(BlazorifySassRuntimeIdentifier) is not the right one." />
+		<Error Condition="!Exists('$(BlazorifySassSnapshot)')"
+		       Text="Blazorify.Sass: no Sass snapshot at $(BlazorifySassSnapshot). The package layout is not what this target expects." />
+		<Error Condition="'%(SassCompile.RelativePath)' == ''"
+		       Text="Blazorify.Sass: %(SassCompile.Identity) declares no RelativePath. That is the path the browser asks for - 'styles/main.css' - rather than a location on disk." />
+
+		<!-- The package's own files carry no executable bit once restored, and only the owner can be assumed. -->
+		<Exec Command="chmod u+x &quot;$(BlazorifySassDart)&quot;" Condition="'$(OS)' != 'Windows_NT'" />
+
+		<MakeDir Directories="@(BlazorifySassOutput->'%(RootDir)%(Directory)')" />
+
+		<Exec Condition="'%(SassCompile.LoadPath)' == ''"
+		      Command="&quot;$(BlazorifySassDart)&quot; &quot;$(BlazorifySassSnapshot)&quot; --no-source-map --style=$(BlazorifySassStyle) --quiet &quot;%(SassCompile.Identity)&quot; &quot;$(BlazorifySassOutputPath)%(SassCompile.RelativePath)&quot;" />
+
+		<Exec Condition="'%(SassCompile.LoadPath)' != ''"
+		      Command="&quot;$(BlazorifySassDart)&quot; &quot;$(BlazorifySassSnapshot)&quot; --no-source-map --style=$(BlazorifySassStyle) --quiet --load-path=&quot;%(SassCompile.LoadPath)&quot; &quot;%(SassCompile.Identity)&quot; &quot;$(BlazorifySassOutputPath)%(SassCompile.RelativePath)&quot;" />
+	</Target>
+
+	<Target Name="BlazorifySassResolveStaticWebAssets"
+	        DependsOnTargets="BlazorifySassCompile"
+	        Condition="'@(SassCompile)' != ''">
+
+		<ItemGroup>
+			<BlazorifySassAssetCandidate Include="@(SassCompile->'$(BlazorifySassOutputPath)%(RelativePath)')">
+				<RelativePath>%(SassCompile.RelativePath)</RelativePath>
+			</BlazorifySassAssetCandidate>
+		</ItemGroup>
+
+		<DefineStaticWebAssets CandidateAssets="@(BlazorifySassAssetCandidate)"
+		                       SourceType="Computed"
+		                       SourceId="$(PackageId)"
+		                       ContentRoot="$(MSBuildProjectDirectory)/$(BlazorifySassOutputPath)"
+		                       BasePath="$(StaticWebAssetBasePath)"
+		                       AssetKind="All"
+		                       AssetMode="CurrentProject"
+		                       AssetRole="Primary"
+		                       CopyToOutputDirectory="Never"
+		                       CopyToPublishDirectory="PreserveNewest">
+			<Output TaskParameter="Assets" ItemName="BlazorifySassStaticWebAsset" />
+		</DefineStaticWebAssets>
+
+		<DefineStaticWebAssetEndpoints CandidateAssets="@(BlazorifySassStaticWebAsset)"
+		                               ExistingEndpoints="@(StaticWebAssetEndpoint)"
+		                               ContentTypeMappings="@(StaticWebAssetContentTypeMapping)">
+			<Output TaskParameter="Endpoints" ItemName="BlazorifySassStaticWebAssetEndpoint" />
+		</DefineStaticWebAssetEndpoints>
+
+		<ItemGroup>
+			<StaticWebAsset Include="@(BlazorifySassStaticWebAsset)" />
+			<StaticWebAssetEndpoint Include="@(BlazorifySassStaticWebAssetEndpoint)" />
+		</ItemGroup>
+	</Target>
+
 </Project>
