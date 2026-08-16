@@ -9,9 +9,7 @@ namespace Blazorify.Sass {
 	public class SassCompiler {
 		private readonly ILogger<SassCompiler> logger;
 
-		private readonly String dartPath;
-
-		private readonly String snapshotPath;
+		private readonly String sassPath;
 
 		private static String GetRuntimeID() {
 			var os = OperatingSystem.IsWindows() ? "win"
@@ -65,40 +63,17 @@ namespace Blazorify.Sass {
 			}
 
 
-			var dartFileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "dart.exe" : "dart";
-
-			// Two layouts, because a RID-specific publish - which is what `dotnet publish --os --arch`
-			// and the SDK's PublishContainer target produce - flattens native assets to the output root,
-			// while a portable publish keeps them under runtimes/<rid>/native/. The bundled `sass`
-			// launcher cannot bridge the two: it is a shell script that execs "$path/src/dart", so in a
-			// flattened layout it looks for a directory that is not there. Running the Dart runtime
-			// against the snapshot directly is what both layouts have in common.
-			var portableDirectory = Path.Combine(
+			this.sassPath = Path.Combine(
 				AppContext.BaseDirectory,
 				"runtimes",
 				GetRuntimeID(),
 				"native",
 				"dart-sass",
-				"src"
+				RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "sass.bat" : "sass"
 			);
 
-			var portableDart = Path.Combine(portableDirectory, dartFileName);
-			var flattenedDart = Path.Combine(AppContext.BaseDirectory, dartFileName);
-
-			if (File.Exists(portableDart)) {
-				this.dartPath = portableDart;
-				this.snapshotPath = Path.Combine(portableDirectory, "sass.snapshot");
-			} else {
-				this.dartPath = flattenedDart;
-				this.snapshotPath = Path.Combine(AppContext.BaseDirectory, "sass.snapshot");
-			}
-
-			if (!File.Exists(this.dartPath) || !File.Exists(this.snapshotPath)) {
-				this.logger.LogError(
-					"Could not find Dart Sass. Looked for {portableDart} and {flattenedDart}.",
-					portableDart,
-					flattenedDart
-				);
+			if (!File.Exists(this.sassPath)) {
+				this.logger.LogError("Could not find Dart Sass executable at: {sassPath}", this.sassPath);
 			}
 		}
 
@@ -126,7 +101,6 @@ namespace Blazorify.Sass {
 
 		public void CompileFile(String inputPath, String outputPath, SassCompilerOptions options) {
 			var args = new List<String>() {
-				$"\"{this.snapshotPath}\"",
 				$"\"{inputPath}\" \"{outputPath}\""
 			};
 
@@ -146,11 +120,11 @@ namespace Blazorify.Sass {
 				args.Add("--quiet");
 			}
 
-			this.logger.LogDebug("[Compile] {dartPath} {sassArgs}", this.dartPath, String.Join(" ", args));
+			this.logger.LogDebug("[Compile] {sassPath} {sassArgs}", this.sassPath, String.Join(" ", args));
 
 			var process = new Process {
 				StartInfo = new ProcessStartInfo {
-					FileName = this.dartPath,
+					FileName = this.sassPath,
 					Arguments = String.Join(" ", args),
 					RedirectStandardError = true,
 					UseShellExecute = false,
