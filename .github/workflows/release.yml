@@ -1,0 +1,65 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-publish:
+    name: Build and Publish Release Package
+    runs-on: ubuntu-latest
+
+    # id-token lets the job ask GitHub for the OIDC token nuget.org exchanges for a
+    # short-lived key. Naming any permission drops the rest to none, so contents has
+    # to be restated for checkout - at write level, since the job tags the release.
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # Tags are the source of truth for the version, so the release number is one
+      # patch above the newest of them - the same number previews have been using.
+      - name: Generate Release Version
+        run: |
+          LATEST=$(git tag -l 'v[0-9]*' | sed 's/^v//' | sort -V | tail -1)
+          LATEST=${LATEST:-0.0.0}
+          IFS=. read -r MAJOR MINOR PATCH <<< "$LATEST"
+          echo "VERSION=$MAJOR.$MINOR.$((PATCH + 1))" >> $GITHUB_ENV
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: "10.0"
+
+      - name: Restore Dependencies
+        run: dotnet restore
+
+      - name: Build the Project
+        run: dotnet build --configuration Release /p:Version=${{ env.VERSION }}
+
+      - name: Pack NuGet Package
+        run: dotnet pack --configuration Release --output ./artifacts /p:Version=${{ env.VERSION }}
+
+      # The key is valid for an hour and single-use, so it is requested here rather
+      # than earlier in the job.
+      - name: NuGet Login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish to NuGet
+        run: |
+          dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+
+      # Only once the push succeeded, so a failed publish leaves the number free.
+      - name: Tag Release
+        run: |
+          git tag "v${{ env.VERSION }}"
+          git push origin "v${{ env.VERSION }}"
