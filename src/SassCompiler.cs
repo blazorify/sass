@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -10,6 +10,7 @@ namespace Blazorify.Sass {
 		private readonly ILogger<SassCompiler> logger;
 
 		private readonly String sassPath;
+		private readonly String? snapshotPath;
 
 		private static String GetRuntimeID() {
 			var os = OperatingSystem.IsWindows() ? "win"
@@ -63,17 +64,37 @@ namespace Blazorify.Sass {
 			}
 
 
-			this.sassPath = Path.Combine(
+			var windows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+			var wrapper = Path.Combine(
 				AppContext.BaseDirectory,
 				"runtimes",
 				GetRuntimeID(),
 				"native",
 				"dart-sass",
-				RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "sass.bat" : "sass"
+				windows ? "sass.bat" : "sass"
 			);
 
-			if (!File.Exists(this.sassPath)) {
-				this.logger.LogError("Could not find Dart Sass executable at: {sassPath}", this.sassPath);
+			// A RID-specific publish flattens runtimes/{rid}/native/** into the output root, so the
+			// wrapper loses the src/ folder it execs relative to itself and fails with "not found".
+			// The Dart VM and the snapshot land beside it and run perfectly well, so they are driven
+			// directly when the bundled layout is absent. The wrapper stays the preferred route: it is
+			// what every non-published build has, and replacing it outright is what broke hot reload
+			// the last time this was attempted.
+			var dart = Path.Combine(AppContext.BaseDirectory, windows ? "dart.exe" : "dart");
+			var snapshot = Path.Combine(AppContext.BaseDirectory, "sass.snapshot");
+
+			if (File.Exists(wrapper)) {
+				this.sassPath = wrapper;
+			} else if (File.Exists(dart) && File.Exists(snapshot)) {
+				this.sassPath = dart;
+				this.snapshotPath = snapshot;
+			} else {
+				throw new InvalidOperationException(
+					$"Could not find Dart Sass. Looked for the bundled wrapper at '{wrapper}' and for a "
+					+ $"flattened RID-specific publish at '{dart}' with '{snapshot}'. Neither is present, so "
+					+ "nothing can compile SCSS in this process."
+				);
 			}
 		}
 
@@ -100,9 +121,13 @@ namespace Blazorify.Sass {
 		}
 
 		public void CompileFile(String inputPath, String outputPath, SassCompilerOptions options) {
-			var args = new List<String>() {
-				$"\"{inputPath}\" \"{outputPath}\""
-			};
+			var args = new List<String>();
+
+			if (this.snapshotPath is not null) {
+				args.Add($"\"{this.snapshotPath}\"");
+			}
+
+			args.Add($"\"{inputPath}\" \"{outputPath}\"");
 
 			foreach (var includePath in options.IncludePaths) {
 				args.Add($"--load-path=\"{includePath}\"");
