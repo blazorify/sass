@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Extensions.Logging;
 
 namespace Blazorify.Sass {
@@ -108,12 +110,35 @@ namespace Blazorify.Sass {
 		}
 
 		public void CompileFile(String inputPath, String outputPath, SassCompilerOptions options) {
+			if (options.Variables.Count == 0) {
+				this.Run(inputPath, outputPath, options, []);
+				return;
+			}
+
+			var directory = Directory.CreateTempSubdirectory("blazorify-sass-").FullName;
+
+			try {
+				var module = new StringBuilder();
+
+				foreach (var (name, value) in options.Variables) {
+					module.Append('$').Append(name).Append(": ").Append(value).AppendLine(";");
+				}
+
+				File.WriteAllText(Path.Combine(directory, "_blazorify.scss"), module.ToString());
+
+				this.Run(inputPath, outputPath, options, [directory]);
+			} finally {
+				Directory.Delete(directory, true);
+			}
+		}
+
+		private void Run(String inputPath, String outputPath, SassCompilerOptions options, List<String> extraIncludePaths) {
 			var args = new List<String>() {
 				$"\"{this.snapshotPath}\"",
 				$"\"{inputPath}\" \"{outputPath}\""
 			};
 
-			foreach (var includePath in options.IncludePaths) {
+			foreach (var includePath in extraIncludePaths.Concat(options.IncludePaths)) {
 				args.Add($"--load-path=\"{includePath}\"");
 			}
 

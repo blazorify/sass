@@ -75,6 +75,28 @@ namespace Blazorify.Sass.Tests {
 		}
 
 		[Fact]
+		public void Compile_Variables_AreAvailableAsAModule() {
+			var options = new SassCompilerOptions { Variables = { ["brand"] = "#336699", ["gap"] = "12px * 2" } };
+
+			var css = this.compiler.Compile("@use \"blazorify\" as v; a { color: v.$brand; margin: v.$gap; }", options);
+
+			Assert.Contains("color: #336699;", css);
+			Assert.Contains("margin: 24px;", css);
+		}
+
+		[Fact]
+		public void CompileFile_Variables_ConfigureALibrary() {
+			using var temp = new TempDirectory();
+			temp.Write("lib/_theme.scss", "$accent: red !default; a { color: $accent; }");
+			var input = temp.Write("app/site.scss", "@use \"blazorify\" as v; @use \"theme\" with ($accent: v.$accent);");
+			var output = temp.Combine("app/site.css");
+
+			this.compiler.CompileFile(input, output, new SassCompilerOptions { IncludePaths = [temp.Combine("lib")], Variables = { ["accent"] = "blue" } });
+
+			Assert.Contains("color: blue;", File.ReadAllText(output));
+		}
+
+		[Fact]
 		public void CompileFile_SourceMapEnabled_WritesMap() {
 			using var temp = new TempDirectory();
 			var input = temp.Write("site.scss", "a { color: red; }");

@@ -36,6 +36,20 @@ namespace Blazorify.Sass.Tests {
 		}
 
 		[Fact]
+		public void CompileFile_WithVariables_LeavesNoTempFiles() {
+			Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows reads TMP, not TMPDIR.");
+
+			Environment.SetEnvironmentVariable("TMPDIR", this.originalTempPath);
+			using var project = new TempDirectory();
+			var input = project.Write("site.scss", "@use \"blazorify\" as v; a { color: v.$brand; }");
+			Environment.SetEnvironmentVariable("TMPDIR", this.temp.Path);
+
+			this.compiler.CompileFile(input, project.Combine("site.css"), new SassCompilerOptions { Variables = { ["brand"] = "red" } });
+
+			Assert.Empty(Directory.GetFileSystemEntries(this.temp.Path));
+		}
+
+		[Fact]
 		public void Compile_InvalidScss_LeavesNoTempFiles() {
 			Assert.SkipWhen(OperatingSystem.IsWindows(), "Windows reads TMP, not TMPDIR.");
 
