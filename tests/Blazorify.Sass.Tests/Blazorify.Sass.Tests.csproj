@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <!--
+    The tests consume the packed .nupkg rather than a ProjectReference, so they exercise what
+    nuget.org receives: the runtimes/ layout, the buildTransitive targets and the executable bits.
+    Pack first: dotnet pack src -o artifacts -p:Version=<v>, then dotnet test -p:BlazorifySassVersion=<v>.
+  -->
+  <PropertyGroup>
+    <RestoreAdditionalProjectSources>$(MSBuildThisFileDirectory)../../artifacts</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <Target Name="RequireBlazorifySassVersion" BeforeTargets="CollectPackageReferences" Condition="'$(BlazorifySassVersion)' == ''">
+    <Error Text="Pass -p:BlazorifySassVersion=&lt;version&gt; matching a package packed into artifacts/." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Blazorify.Sass" Version="$(BlazorifySassVersion)" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+</Project>
