@@ -13,7 +13,7 @@ namespace Blazorify.Sass.Tests {
 	// executable bits from the restored package before building a sample app against it.
 	[SupportedOSPlatform("linux")]
 	public class ConsumerAppTests {
-		private static readonly String[] LinuxRuntimes = ["linux-x64", "linux-arm64"];
+		private static readonly String[] UnixRuntimes = ["linux-x64", "linux-arm64", "osx-x64", "osx-arm64"];
 
 		private static readonly String[] Executables = ["sass", "src/dart"];
 
@@ -68,7 +68,7 @@ namespace Blazorify.Sass.Tests {
 			var restore = Run("dotnet", "restore", temp.Combine("App"));
 			Assert.True(restore.ExitCode == 0, restore.Output);
 
-			foreach (var runtime in LinuxRuntimes) {
+			foreach (var runtime in UnixRuntimes) {
 				foreach (var executable in Executables) {
 					var path = PackageLayoutTests.DartSassFile(temp.Combine($"packages/blazorify.sass/{version}"), runtime, executable);
 					File.SetUnixFileMode(path, File.GetUnixFileMode(path) & ~(UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute));
@@ -83,8 +83,8 @@ namespace Blazorify.Sass.Tests {
 			Assert.Contains(".card .title", app.Output);
 		}
 
-		private static void AssertLinuxSassExecutable(String appDirectory) {
-			foreach (var runtime in LinuxRuntimes) {
+		private static void AssertSassExecutable(String appDirectory) {
+			foreach (var runtime in UnixRuntimes) {
 				foreach (var executable in Executables) {
 					var mode = File.GetUnixFileMode(PackageLayoutTests.DartSassFile(appDirectory, runtime, executable));
 					Assert.True(mode.HasFlag(UnixFileMode.UserExecute), $"{runtime}/{executable} is {mode}");
@@ -94,7 +94,7 @@ namespace Blazorify.Sass.Tests {
 
 		[Fact]
 		public void Build_MakesSassExecutable() {
-			Assert.SkipUnless(OperatingSystem.IsLinux(), "The chmod targets cover the Linux binaries only.");
+			Assert.SkipUnless(OperatingSystem.IsLinux(), "Runs the Linux binaries; the chmod targets do not run on Windows.");
 
 			using var temp = new TempDirectory();
 			RestoreWithoutExecutableBits(temp);
@@ -102,13 +102,13 @@ namespace Blazorify.Sass.Tests {
 			var build = Run("dotnet", "build -c Release --no-restore -o \"../out\"", temp.Combine("App"));
 			Assert.True(build.ExitCode == 0, build.Output);
 
-			AssertLinuxSassExecutable(temp.Combine("out"));
+			AssertSassExecutable(temp.Combine("out"));
 			AssertAppCompiles(temp.Combine("out"));
 		}
 
 		[Fact]
 		public void Publish_MakesSassExecutable() {
-			Assert.SkipUnless(OperatingSystem.IsLinux(), "The chmod targets cover the Linux binaries only.");
+			Assert.SkipUnless(OperatingSystem.IsLinux(), "Runs the Linux binaries; the chmod targets do not run on Windows.");
 
 			using var temp = new TempDirectory();
 			RestoreWithoutExecutableBits(temp);
@@ -116,14 +116,14 @@ namespace Blazorify.Sass.Tests {
 			var publish = Run("dotnet", "publish -c Release --no-restore -o \"../out\"", temp.Combine("App"));
 			Assert.True(publish.ExitCode == 0, publish.Output);
 
-			AssertLinuxSassExecutable(temp.Combine("out"));
+			AssertSassExecutable(temp.Combine("out"));
 			AssertAppCompiles(temp.Combine("out"));
 		}
 
 		// A runtime-specific publish copies native assets flat into the output root.
 		[Fact]
 		public void PublishForRuntime_CompilesScss() {
-			Assert.SkipUnless(OperatingSystem.IsLinux(), "The chmod targets cover the Linux binaries only.");
+			Assert.SkipUnless(OperatingSystem.IsLinux(), "Runs the Linux binaries; the chmod targets do not run on Windows.");
 
 			using var temp = new TempDirectory();
 			RestoreWithoutExecutableBits(temp, CurrentLinuxRuntime());
