@@ -3,38 +3,69 @@ name: preview
 on:
   push:
     branches:
-      - preview
+      - dev
+  pull_request:
+    branches:
+      - dev
 
 jobs:
-  build-and-publish:
-    name: Build and Publish Preview Package
+  build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Generate Preview Version
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Generate preview version
         id: version
         run: |
           BASE_VERSION=$(grep -oPm1 '(?<=<Version>)[^<]+' src/Blazorify.Sass.csproj)
           TIMESTAMP=$(date -u +"%y%m%d%H%M%S")
           echo "version=$BASE_VERSION-preview.$TIMESTAMP" >> "$GITHUB_OUTPUT"
 
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v3
+      - name: Pack
+        run: dotnet pack src/Blazorify.Sass.csproj --configuration Release --output ./artifacts /p:Version=${{ steps.version.outputs.version }}
+
+      # The tests restore the package packed above, so they run against exactly what gets published.
+      - name: Test
+        run: dotnet test tests/Blazorify.Sass.Tests --configuration Release /p:BlazorifySassVersion=${{ steps.version.outputs.version }}
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
         with:
-          dotnet-version: "9.0"
+          name: package
+          path: ./artifacts/*.nupkg
 
-      - name: Restore Dependencies
-        run: dotnet restore
+  publish-preview:
+    name: Publish Preview to NuGet
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
 
-      - name: Build the Project
-        run: dotnet build --configuration Release /p:Version=${{ steps.version.outputs.version }}
+    # id-token lets the job exchange a GitHub OIDC token for a short-lived NuGet key,
+    # so there is no long-lived NUGET_API_KEY left to expire.
+    permissions:
+      contents: read
+      id-token: write
 
-      - name: Pack NuGet Package
-        run: dotnet pack --configuration Release --output ./artifacts /p:Version=${{ steps.version.outputs.version }}
+    steps:
+      - name: Download tested package
+        uses: actions/download-artifact@v4
+        with:
+          name: package
+          path: ./artifacts
+
+      - name: NuGet Login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
 
       - name: Publish to NuGet
-        run: |
-          dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
