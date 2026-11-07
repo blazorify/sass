@@ -12,6 +12,8 @@ namespace Blazorify.Sass.Tests {
 		[InlineData("linux-arm64", "src/dart")]
 		[InlineData("osx-x64", "sass")]
 		[InlineData("osx-x64", "src/dart")]
+		[InlineData("osx-arm64", "sass")]
+		[InlineData("osx-arm64", "src/dart")]
 		public void Build_CopiesSassForEveryShippedRuntime(String runtime, String file) {
 			Assert.True(File.Exists(DartSassFile(AppContext.BaseDirectory, runtime, file)));
 		}
