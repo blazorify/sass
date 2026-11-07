@@ -90,21 +90,21 @@ namespace Blazorify.Sass {
 		}
 
 		public String Compile(String scss, SassCompilerOptions options) {
-			var inputPath = $"{Path.GetTempFileName()}.scss";
-			var outputPath = $"{Path.GetTempFileName()}.css";
+			var directory = Directory.CreateTempSubdirectory("blazorify-sass-").FullName;
+			var inputPath = Path.Combine(directory, "input.scss");
+			var outputPath = Path.Combine(directory, "output.css");
 
-			this.logger.LogDebug("[Compile] Write {size} to {tempScss}", scss.Length, inputPath);
+			try {
+				this.logger.LogDebug("[Compile] Write {size} to {tempScss}", scss.Length, inputPath);
 
-			File.WriteAllText(inputPath, scss);
+				File.WriteAllText(inputPath, scss);
 
-			this.CompileFile(inputPath, outputPath, options);
+				this.CompileFile(inputPath, outputPath, options);
 
-			var result = File.ReadAllText(outputPath);
-
-			File.Delete(inputPath);
-			File.Delete(outputPath);
-
-			return result;
+				return File.ReadAllText(outputPath);
+			} finally {
+				Directory.Delete(directory, true);
+			}
 		}
 
 		public void CompileFile(String inputPath, String outputPath, SassCompilerOptions options) {
