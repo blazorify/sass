@@ -84,6 +84,20 @@ namespace Blazorify.Sass.Tests {
 			Assert.Contains("margin: 24px;", css);
 		}
 
+		// A removal frees a slot in a plain Dictionary that the next Add reuses, putting "derived" before "base".
+		[Fact]
+		public void Compile_Variables_AreDeclaredInTheOrderAdded() {
+			var options = new SassCompilerOptions();
+			options.Variables.Add("dropped", "0");
+			options.Variables.Add("base", "1px");
+			options.Variables.Remove("dropped");
+			options.Variables.Add("derived", "$base * 2");
+
+			var css = this.compiler.Compile("@use \"blazorify\" as v; a { border-width: v.$derived; }", options);
+
+			Assert.Contains("border-width: 2px;", css);
+		}
+
 		[Fact]
 		public void CompileFile_Variables_ConfigureALibrary() {
 			using var temp = new TempDirectory();
