@@ -9,6 +9,12 @@ namespace Blazorify.Sass {
 		public List<String> IncludePaths { get; set; } = [];
 
 		/// <summary>
+		/// Variables, declared in the order added, exposed to stylesheets as the "blazorify" module: <c>@use "blazorify" as v;</c> then <c>v.$name</c>.
+		/// Values are written as raw Sass, so a quoted string needs its quotes, e.g. <c>"\"Inter\""</c>.
+		/// </summary>
+		public OrderedDictionary<String, String> Variables { get; set; } = [];
+
+		/// <summary>
 		/// Output style. Options: "expanded", "compressed".
 		/// </summary>
 		public String Style { get; set; } = "expanded";

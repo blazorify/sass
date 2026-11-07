@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Blazorify.Sass.Tests {
 	internal sealed class ListLogger<T> : ILogger<T> {
-		public ConcurrentQueue<(LogLevel Level, Exception? Exception)> Entries { get; } = new();
+		public ConcurrentQueue<(LogLevel Level, String Message, Exception? Exception)> Entries { get; } = new();
 
 		public IDisposable? BeginScope<TState>(TState state) where TState : notnull {
 			return null;
@@ -15,7 +15,7 @@ namespace Blazorify.Sass.Tests {
 		}
 
 		public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, String> formatter) {
-			this.Entries.Enqueue((logLevel, exception));
+			this.Entries.Enqueue((logLevel, formatter(state, exception), exception));
 		}
 	}
 }
