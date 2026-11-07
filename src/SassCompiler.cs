@@ -148,6 +148,10 @@ namespace Blazorify.Sass {
 			if (process.ExitCode != 0) {
 				throw new Exception($"SCSS compilation failed:\n{stderr}");
 			}
+
+			if (!String.IsNullOrWhiteSpace(stderr)) {
+				this.logger.LogWarning("[Compile] {inputPath}:\n{sassWarnings}", inputPath, stderr);
+			}
 		}
 	}
 }
