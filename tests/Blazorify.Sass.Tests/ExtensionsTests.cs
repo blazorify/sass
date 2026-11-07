@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
@@ -36,6 +37,19 @@ namespace Blazorify.Sass.Tests {
 			temp.Write("site.scss", "a { color: green; }");
 
 			Assert.Contains("color: green;", Eventually.ReadWhen(output, css => css.Contains("green")));
+		}
+
+		[Fact]
+		public void UseBlazorifySass_DoesNotWatchFilesRegisteredWithoutWatch() {
+			using var temp = new TempDirectory();
+			var input = temp.Write("site.scss", "a { color: red; }");
+			var output = temp.Combine("site.css");
+
+			CreateApp(manager => manager.Register(new SassFileRegistration { InputPath = input, OutputPath = output })).UseBlazorifySass();
+			temp.Write("site.scss", "a { color: green; }");
+			Thread.Sleep(2000);
+
+			Assert.Contains("color: red;", File.ReadAllText(output));
 		}
 
 		[Fact]
