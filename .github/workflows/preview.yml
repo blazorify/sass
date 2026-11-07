@@ -3,47 +3,65 @@ name: preview
 on:
   push:
     branches:
-      - preview
+      - dev
+  pull_request:
+    branches:
+      - dev
 
 jobs:
-  build-and-publish:
-    name: Build and Publish Preview Package
+  build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
 
-    # id-token lets the job ask GitHub for the OIDC token nuget.org exchanges for a
-    # short-lived key. Naming any permission drops the rest to none, so contents has
-    # to be restated for checkout.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore NuGet packages
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+  publish-preview:
+    name: Publish Preview to NuGet
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+
+    # id-token lets the job exchange a GitHub OIDC token for a short-lived NuGet key,
+    # so there is no long-lived NUGET_API_KEY left to expire.
     permissions:
       contents: read
       id-token: write
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Generate Preview Version
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Generate preview version
         id: version
         run: |
           BASE_VERSION=$(grep -oPm1 '(?<=<Version>)[^<]+' src/Blazorify.Sass.csproj)
           TIMESTAMP=$(date -u +"%y%m%d%H%M%S")
           echo "version=$BASE_VERSION-preview.$TIMESTAMP" >> "$GITHUB_OUTPUT"
 
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: "9.0"
+      - name: Pack
+        run: dotnet pack src/Blazorify.Sass.csproj --configuration Release --output ./artifacts /p:Version=${{ steps.version.outputs.version }}
 
-      - name: Restore Dependencies
-        run: dotnet restore
-
-      - name: Build the Project
-        run: dotnet build --configuration Release /p:Version=${{ steps.version.outputs.version }}
-
-      - name: Pack NuGet Package
-        run: dotnet pack --configuration Release --output ./artifacts /p:Version=${{ steps.version.outputs.version }}
-
-      # The key is valid for an hour and single-use, so it is requested here rather
-      # than earlier in the job.
       - name: NuGet Login
         id: login
         uses: NuGet/login@v1
@@ -51,5 +69,4 @@ jobs:
           user: ${{ secrets.NUGET_USER }}
 
       - name: Publish to NuGet
-        run: |
-          dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json

@@ -4,39 +4,62 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  build-and-publish:
-    name: Build and Publish Release Package
+  build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
 
-    # id-token lets the job ask GitHub for the OIDC token nuget.org exchanges for a
-    # short-lived key. Naming any permission drops the rest to none, so contents has
-    # to be restated for checkout.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore NuGet packages
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+  publish-release:
+    name: Publish Release to NuGet
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    # Naming any permission drops the rest to none, so contents is restated for
+    # checkout - at write level, since the job tags the release.
     permissions:
-      contents: read
+      contents: write
       id-token: write
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "9.0"
+          dotnet-version: "10.0.x"
 
-      - name: Restore Dependencies
-        run: dotnet restore
+      - name: Read version
+        id: version
+        run: echo "version=$(grep -oPm1 '(?<=<Version>)[^<]+' src/Blazorify.Sass.csproj)" >> "$GITHUB_OUTPUT"
 
-      - name: Build the Project
-        run: dotnet build --configuration Release
+      - name: Pack
+        run: dotnet pack src/Blazorify.Sass.csproj --configuration Release --output ./artifacts
 
-      - name: Pack NuGet Package
-        run: dotnet pack --configuration Release --output ./artifacts
-
-      # The key is valid for an hour and single-use, so it is requested here rather
-      # than earlier in the job.
+      # The key is valid for an hour and single-use, so it is requested right before the push.
       - name: NuGet Login
         id: login
         uses: NuGet/login@v1
@@ -44,5 +67,10 @@ jobs:
           user: ${{ secrets.NUGET_USER }}
 
       - name: Publish to NuGet
+        run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+
+      # Only once the push succeeded, so a failed publish leaves the number free.
+      - name: Tag release
         run: |
-          dotnet nuget push ./artifacts/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
