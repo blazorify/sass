@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -28,6 +29,26 @@ namespace Blazorify.Sass.Tests {
 
 			Assert.Contains("SCSS compilation failed", exception.Message);
 			Assert.Contains("Expected expression", exception.Message);
+		}
+
+		[Fact]
+		public void Compile_NotQuiet_LogsSassWarnings() {
+			var logger = new ListLogger<SassCompiler>();
+			var compiler = new SassCompiler(logger);
+
+			compiler.Compile("@warn \"check the palette\"; a { color: red; }", new SassCompilerOptions { Quiet = false });
+
+			Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Warning && entry.Message.Contains("check the palette"));
+		}
+
+		[Fact]
+		public void Compile_Quiet_LogsNoSassWarnings() {
+			var logger = new ListLogger<SassCompiler>();
+			var compiler = new SassCompiler(logger);
+
+			compiler.Compile("@warn \"check the palette\"; a { color: red; }", new SassCompilerOptions { Quiet = true });
+
+			Assert.DoesNotContain(logger.Entries, entry => entry.Message.Contains("check the palette"));
 		}
 
 		[Fact]

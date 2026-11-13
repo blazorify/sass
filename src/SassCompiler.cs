@@ -9,7 +9,9 @@ namespace Blazorify.Sass {
 	public class SassCompiler {
 		private readonly ILogger<SassCompiler> logger;
 
-		private readonly String sassPath;
+		private readonly String dartPath;
+
+		private readonly String snapshotPath;
 
 		private static String GetRuntimeID() {
 			var os = OperatingSystem.IsWindows() ? "win"
@@ -51,6 +53,20 @@ namespace Blazorify.Sass {
 			return false;
 		}
 
+		private static (String Dart, String Snapshot) FindDartSass() {
+			var dart = OperatingSystem.IsWindows() ? "dart.exe" : "dart";
+			var packaged = Path.Combine(AppContext.BaseDirectory, "runtimes", GetRuntimeID(), "native", "dart-sass", "src");
+
+			// A runtime-specific build or publish copies the package's native files flat into the app folder.
+			foreach (var directory in new[] { packaged, AppContext.BaseDirectory }) {
+				if (File.Exists(Path.Combine(directory, dart))) {
+					return (Path.Combine(directory, dart), Path.Combine(directory, "sass.snapshot"));
+				}
+			}
+
+			return (Path.Combine(packaged, dart), Path.Combine(packaged, "sass.snapshot"));
+		}
+
 		public SassCompiler(
 			ILogger<SassCompiler> logger
 		) {
@@ -62,18 +78,10 @@ namespace Blazorify.Sass {
 				);
 			}
 
+			(this.dartPath, this.snapshotPath) = FindDartSass();
 
-			this.sassPath = Path.Combine(
-				AppContext.BaseDirectory,
-				"runtimes",
-				GetRuntimeID(),
-				"native",
-				"dart-sass",
-				RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "sass.bat" : "sass"
-			);
-
-			if (!File.Exists(this.sassPath)) {
-				this.logger.LogError("Could not find Dart Sass executable at: {sassPath}", this.sassPath);
+			if (!File.Exists(this.dartPath)) {
+				this.logger.LogError("Could not find Dart Sass executable at: {dartPath}", this.dartPath);
 			}
 		}
 
@@ -82,25 +90,26 @@ namespace Blazorify.Sass {
 		}
 
 		public String Compile(String scss, SassCompilerOptions options) {
-			var inputPath = $"{Path.GetTempFileName()}.scss";
-			var outputPath = $"{Path.GetTempFileName()}.css";
+			var directory = Directory.CreateTempSubdirectory("blazorify-sass-").FullName;
+			var inputPath = Path.Combine(directory, "input.scss");
+			var outputPath = Path.Combine(directory, "output.css");
 
-			this.logger.LogDebug("[Compile] Write {size} to {tempScss}", scss.Length, inputPath);
+			try {
+				this.logger.LogDebug("[Compile] Write {size} to {tempScss}", scss.Length, inputPath);
 
-			File.WriteAllText(inputPath, scss);
+				File.WriteAllText(inputPath, scss);
 
-			this.CompileFile(inputPath, outputPath, options);
+				this.CompileFile(inputPath, outputPath, options);
 
-			var result = File.ReadAllText(outputPath);
-
-			File.Delete(inputPath);
-			File.Delete(outputPath);
-
-			return result;
+				return File.ReadAllText(outputPath);
+			} finally {
+				Directory.Delete(directory, true);
+			}
 		}
 
 		public void CompileFile(String inputPath, String outputPath, SassCompilerOptions options) {
 			var args = new List<String>() {
+				$"\"{this.snapshotPath}\"",
 				$"\"{inputPath}\" \"{outputPath}\""
 			};
 
@@ -120,11 +129,11 @@ namespace Blazorify.Sass {
 				args.Add("--quiet");
 			}
 
-			this.logger.LogDebug("[Compile] {sassPath} {sassArgs}", this.sassPath, String.Join(" ", args));
+			this.logger.LogDebug("[Compile] {dartPath} {sassArgs}", this.dartPath, String.Join(" ", args));
 
 			var process = new Process {
 				StartInfo = new ProcessStartInfo {
-					FileName = this.sassPath,
+					FileName = this.dartPath,
 					Arguments = String.Join(" ", args),
 					RedirectStandardError = true,
 					UseShellExecute = false,
@@ -138,6 +147,10 @@ namespace Blazorify.Sass {
 
 			if (process.ExitCode != 0) {
 				throw new Exception($"SCSS compilation failed:\n{stderr}");
+			}
+
+			if (!String.IsNullOrWhiteSpace(stderr)) {
+				this.logger.LogWarning("[Compile] {inputPath}:\n{sassWarnings}", inputPath, stderr);
 			}
 		}
 	}
