@@ -120,6 +120,19 @@ namespace Blazorify.Sass.Tests {
 			AssertAppCompiles(temp.Combine("out"));
 		}
 
+		[Fact]
+		public void BuildForRuntime_CompilesScss() {
+			Assert.SkipUnless(OperatingSystem.IsLinux(), "Runs the Linux binaries; the chmod targets do not run on Windows.");
+
+			using var temp = new TempDirectory();
+			RestoreWithoutExecutableBits(temp, CurrentLinuxRuntime());
+
+			var build = Run("dotnet", "build -c Release --no-restore -o \"../out\"", temp.Combine("App"));
+			Assert.True(build.ExitCode == 0, build.Output);
+
+			AssertAppCompiles(temp.Combine("out"));
+		}
+
 		// A runtime-specific publish copies native assets flat into the output root.
 		[Fact]
 		public void PublishForRuntime_CompilesScss() {
